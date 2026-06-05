@@ -188,7 +188,7 @@ async function buildBoard(grid) {
       const x = startX + 7 + (c * spacing);
       const y = startY + 7 + (r * spacing);
       console.log(`coordinates  ${x} ${y} ${r} ${c}  tokens`);
-      const url = new URL(`/tokens/${value}.png`, window.location.origin).href;
+      const url = new URL(`https://philharbin-eng.github.io/457813/tokens/${value}.png`, window.location.origin).href;
 
       const item = buildImage(
         {
