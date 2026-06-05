@@ -7,8 +7,8 @@
   "icon": "/icon.png",
   "action": {
     "title": "Sudoku",
-    "icon": "./icon.png",
-    "popover": "./index.html",
+    "icon": "/icon.png",
+    "popover": "/index.html",
     "width": 300,
     "height": 400
   }
