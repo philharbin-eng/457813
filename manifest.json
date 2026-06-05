@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "author": "Max Battle",
   "description": "Sudoku Dungeon",
-  "icon": "/icon.png",
+  "icon": "./icon.png",
   "action": {
     "title": "Token System",
     "icon": "./icon.png",
