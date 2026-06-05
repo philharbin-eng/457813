@@ -1,0 +1,17 @@
+# Create cert
+$cert = New-SelfSignedCertificate   -DnsName "localhost"   -CertStoreLocation "Cert:\LocalMachine\My"   -FriendlyName "Localhost Dev Cert"
+
+# Export to PFX (optional)
+$pwd = ConvertTo-SecureString -String "testpass" -Force -AsPlainText
+
+Export-PfxCertificate   -Cert $cert   -FilePath "C:\Users\philh\Desktop\OwlBear\owlbear-token-system\localhost.pfx"   -Password $pwd
+
+# ✅ CRITICAL STEP — trust the cert
+Export-Certificate   -Cert $cert   -FilePath "C:\Users\philh\Desktop\OwlBear\owlbear-token-system\localhost.cer"
+
+Import-Certificate   -FilePath "C:\Users\philh\Desktop\OwlBear\owlbear-token-system\localhost.cer"   -CertStoreLocation "Cert:\LocalMachine\Root"
+
+
+
+
+"c:\Program Files\OpenSSL-Win64\bin\openssl.exe" req -x509 -newkey rsa:2048 -nodes -in localhost.pfx -keyout key.pem -out cert.pem -days 365

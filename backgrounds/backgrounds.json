@@ -1,0 +1,19 @@
+{
+  "backgrounds": [
+    {
+      "id": "classic",
+      "label": "Classic Board",
+      "path": "/backgrounds/board.png"
+    },
+    {
+      "id": "dark",
+      "label": "Dark Mode",
+      "path": "/backgrounds/board-dark.png"
+    },
+    {
+      "id": "wood",
+      "label": "Wood Table",
+      "path": "/backgrounds/board-wood.png"
+    }
+  ]
+}

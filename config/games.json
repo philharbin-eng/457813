@@ -1,0 +1,34 @@
+{
+  "difficulties": [
+    {
+      "id": "easy",
+      "range": { "min": 1, "max": 20 },
+      "path": "boards/easy/{n}.json"
+    },
+    {
+      "id": "regular",
+      "range": { "min": 1, "max": 30 },
+      "path": "boards/regular/{n}.json"
+    },
+    {
+      "id": "medium",
+      "range": { "min": 1, "max": 40 },
+      "path": "boards/medium/{n}.json"
+    },
+    {
+      "id": "hard",
+      "range": { "min": 1, "max": 60 },
+      "path": "boards/hard/{n}.json"
+    },
+    {
+      "id": "expert",
+      "range": { "min": 1, "max": 80 },
+      "path": "boards/expert/{n}.json"
+    }
+  ],
+
+  "players": {
+    "max": 4,
+    "colors": ["red", "yellow", "blue", "green"]
+  }
+}

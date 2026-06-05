@@ -1,0 +1,149 @@
+Add System.Drawing
+
+# =========================
+# CONFIG
+# =========================
+
+$BoardSize = 1773
+$Offset    = 50
+$ShiftX    = -13    # ✅ move whole board
+
+$Spacing   = 166.6667
+
+											  
+
+$ThinWidth  = 2
+$BoxWidth   = 18
+$OuterWidth = 22
+
+$LineColor = [System.Drawing.Color]::FromArgb(200, 0, 0, 0)
+$FillColor = [System.Drawing.Color]::FromArgb(248, 246, 230, 200)  #yellow
+$FillColor = [System.Drawing.Color]::FromArgb(247, 154, 218, 200)   #aqua
+$FillColor = [System.Drawing.Color]::FromArgb(179, 243, 247, 200)   #olive
+
+
+# =========================
+# SETUP
+# =========================
+
+$bmp = New-Object System.Drawing.Bitmap($BoardSize, $BoardSize)
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+
+$g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+$g.Clear([System.Drawing.Color]::FromArgb(0,0,0,0))
+
+# =========================
+# SHIFTED OFFSET (KEY FIX)
+# =========================
+
+$OffsetX = $Offset + $ShiftX
+$OffsetY = $Offset   # no vertical shift
+
+$MinX = $OffsetX
+$MinY = $OffsetY
+
+$MaxX = $OffsetX + (9 * $Spacing)
+$MaxY = $OffsetY + (9 * $Spacing)
+
+# =========================
+# FILL (NOW MATCHES GRID ✅)
+# =========================
+
+$brush = New-Object System.Drawing.SolidBrush($FillColor)
+
+$g.FillRectangle(
+    $brush,
+    $MinX,
+    $MinY,
+    $MaxX - $MinX,
+    $MaxY - $MinY
+)
+
+$brush.Dispose()
+ 
+
+
+
+# =========================
+# INNER GRID
+						   
+
+			  
+							   
+
+											 
+					  
+					  
+
+# =========================
+					  
+						   
+
+for ($i = 1; $i -lt 9; $i++) {
+
+    $posX = [math]::Round($OffsetX + ($i * $Spacing))
+    $posY = [math]::Round($OffsetY + ($i * $Spacing))
+
+						   
+													
+
+    if ($i % 3 -eq 0) {
+        $width = $BoxWidth
+    } else {
+        $width = $ThinWidth
+    }
+
+    $half = $width / 2
+
+    $pen = New-Object System.Drawing.Pen($LineColor, $width)
+
+    # vertical
+    $g.DrawLine(
+        $pen,
+        $posX,
+        $MinY + $half,
+        $posX,
+        $MaxY - $half
+    )
+
+    # horizontal
+    $g.DrawLine(
+        $pen,
+        $MinX + $half,
+        $posY,
+        $MaxX - $half,
+        $posY
+    )
+
+    $pen.Dispose()
+}
+
+# =========================
+# BORDER
+# =========================
+
+$half = $OuterWidth / 2
+
+$borderPen = New-Object System.Drawing.Pen($LineColor, $OuterWidth)
+
+$g.DrawRectangle(
+    $borderPen,
+    $MinX + $half,
+    $MinY + $half,
+    ($MaxX - $MinX) - $OuterWidth,
+    ($MaxY - $MinY) - $OuterWidth
+)
+
+$borderPen.Dispose()
+
+# =========================
+# SAVE
+# =========================
+
+$outPath = Join-Path (Get-Location) "board.png"
+$bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
+
+$g.Dispose()
+$bmp.Dispose()
+
+Write-Host "✅ Clean aligned board created:" $outPath
