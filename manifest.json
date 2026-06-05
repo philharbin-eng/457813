@@ -1,10 +1,10 @@
 {
   "manifest_version": 1,
   "name": "Token Processor",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "author": "Max Battle",
   "description": "Dungeon of Sudoku",
-  "icon": "./icon.png",
+  "icon": "/icon.png",
   "action": {
     "title": "Sudoku",
     "icon": "./icon.png",
