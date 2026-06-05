@@ -107,7 +107,7 @@ async function setGameCamera() {
 // ✅ BACKGROUND SYSTEM
 // =========================
 async function loadBackgrounds() {
-  const res = await fetch("/backgrounds/backgrounds.json");
+  const res = await fetch("https://philharbin-eng.github.io/457813/backgrounds/backgrounds.json");
 
   if (!res.ok) {
     throw new Error(`Failed to load backgrounds.json`);
@@ -232,7 +232,7 @@ async function buildBoard(grid) {
 // ✅ GAME CONFIG
 // =========================
 async function loadConfig() {
-  const res = await fetch("/config/games.json");
+  const res = await fetch("https://philharbin-eng.github.io/457813/config/games.json");
   if (!res.ok) throw new Error("Failed to load game config");
 
   config = await res.json();
