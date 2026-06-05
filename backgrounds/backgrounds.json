@@ -3,17 +3,17 @@
     {
       "id": "classic",
       "label": "Classic Board",
-      "path": "./backgrounds/board.png"
+      "path": "https://philharbin-eng.github.io/457813/backgrounds/board.png"
     },
     {
       "id": "dark",
       "label": "Dark Mode",
-      "path": "./backgrounds/board-dark.png"
+      "path": "https://philharbin-eng.github.io/457813/backgrounds/board-dark.png"
     },
     {
       "id": "wood",
       "label": "Wood Table",
-      "path": "./backgrounds/board-wood.png"
+      "path": "https://philharbin-eng.github.io/457813/backgrounds/board-wood.png"
     }
   ]
 }
