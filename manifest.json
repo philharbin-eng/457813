@@ -1,14 +1,14 @@
 {
   "manifest_version": 1,
   "name": "Token Processor",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "author": "Max Battle",
   "description": "Dungeon of Sudoku",
-  "icon": "./icon.png",
+  "icon": "https://philharbin-eng.github.io/457813/icon.png",
   "action": {
     "title": "Sudoku",
-    "icon": "./icon.png",
-    "popover": "./index.html",
+    "icon": "https://philharbin-eng.github.io/457813/icon.png",
+    "popover": "https://philharbin-eng.github.io/457813/index.html",
     "width": 300,
     "height": 400
   }
