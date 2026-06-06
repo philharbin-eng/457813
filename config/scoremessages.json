@@ -1,0 +1,22 @@
+{
+  "under5": [
+    "Small points still count! +{points}",
+    "Got it! +{points}",
+    "Steady progress. +{points}"
+  ],
+  "6to15": [
+    "Nice pickup! +{points}",
+    "Solid score! +{points}",
+    "That move paid off! +{points}"
+  ],
+  "16to30": [
+    "Big points! +{points}",
+    "Strong move! +{points}",
+    "That was a scorer! +{points}"
+  ],
+  "over30": [
+    "Huge score! +{points}",
+    "That’s a monster move! +{points}",
+    "Massive points! +{points}"
+  ]
+}
