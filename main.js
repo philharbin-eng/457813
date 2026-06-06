@@ -53,37 +53,30 @@ async function waitForSceneReady() {
     }
   }
 }
+
+
+
 function setupItemWatcher() {
   OBR.scene.items.onChange(async (items) => {
-    if (suppressChanges (item.type !== "IMAGE") continue;    if (suppressChanges) return;
+    if (suppressChanges) return;
+
+    for (const item of items) {
+      if (item.type !== "IMAGE") continue;
 
       const isKnown = knownIds.has(item.id);
 
+      // Track all seen items
       if (!isKnown) {
         knownIds.add(item.id);
-
-        // Skip system tokens
-        if (item.metadata?.["phil.sudoku"]?.system) continue;
-
-        await tagNewToken(item);
-
-        // ✅ DEBUG ON CREATE
-        if (!item.locked) {
-          debugPlayerInfo(item);
-        }
-
-        continue;
       }
 
-      // ✅ DEBUG ON MOVE / UPDATE
+      // ✅ DEBUG ONLY (no mutation!)
       if (!item.metadata?.["phil.sudoku"]?.system && !item.locked) {
         debugPlayerInfo(item);
       }
     }
   });
 }
-
-    for (const item of items) {
 
 // =========================
 // ✅ CLEAR SCENE
