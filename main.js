@@ -172,13 +172,30 @@ async function addBackground(bgPath) {
 // =========================
 // ✅ BUILD BOARD
 // =========================
-async function buildBoard(grid) {
-  const items = [];
+async function buildBoard(grid, solution) {async function buildBoard(grid, const items = [];
 
-  const startX = -2650;  //2250
-  const startY = 170;  //20
+  const startX = -2650;
+  const startY = 170;
   const spacing = 620;
 
+  const cells = [];
+
+  // ✅ Build full 81-cell coordinate map
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const x = startX + 7 + (c * spacing);
+      const y = startY + 7 + (r * spacing);
+
+      cells.push({
+        row: r,
+        col: c,
+        x,
+        y
+      });
+    }
+  }
+
+  // ✅ Build initial tokens (given values only)
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       const value = grid[r][c];
@@ -186,8 +203,11 @@ async function buildBoard(grid) {
 
       const x = startX + 7 + (c * spacing);
       const y = startY + 7 + (r * spacing);
-      console.log(`coordinates  ${x} ${y} ${r} ${c}  tokens`);
-      const url = new URL(`https://philharbin-eng.github.io/457813/tokens/${value}.png`, window.location.origin).href;
+
+      const url = new URL(
+        `https://philharbin-eng.github.io/457813/tokens/${value}.png`,
+        window.location.origin
+      ).href;
 
       const item = buildImage(
         {
@@ -221,11 +241,28 @@ async function buildBoard(grid) {
     }
   }
 
+  // ✅ Add initial tokens to scene
   if (items.length) {
     await OBR.scene.items.addItems(items);
     console.log(`✅ Board built`);
   }
+
+  // ✅ Create working gameboard (deep copy of grid)
+  const gameboard = grid.map(row => [...row]);
+
+  // ✅ Store full board state in scene metadata (ONE atomic write)
+  await OBR.scene.setMetadata({
+    "phil.sudoku.board": {
+      grid,        // original puzzle
+      gameboard,   // mutable board
+      solution,    // full solution
+      cells        // full coordinate map
+    }
+  });
+
+  console.log(`✅ Board metadata stored`);
 }
+
 
 // =========================
 // ✅ GAME CONFIG
