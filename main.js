@@ -53,36 +53,37 @@ async function waitForSceneReady() {
     }
   }
 }
-
-// =========================
-// ✅ ITEM WATCHER (UNCHANGED)
-// =========================
 function setupItemWatcher() {
   OBR.scene.items.onChange(async (items) => {
-    if (suppressChanges) return;
+    if (suppressChanges (item.type !== "IMAGE") continue;    if (suppressChanges) return;
 
-    for (const item of items) {
-      if (item.type !== "IMAGE") continue;
+      const isKnown = knownIds.has(item.id);
 
-      if (!knownIds.has(item.id)) {
+      if (!isKnown) {
         knownIds.add(item.id);
 
-if (!item.metadata?.["phil.sudoku"]?.system && !item.locked) {
-  debugPlayerInfo(item);
-}
-
-        
+        // Skip system tokens
         if (item.metadata?.["phil.sudoku"]?.system) continue;
 
-        try {
-          await tagNewToken(item);
-        } catch (err) {
-          console.error("❌ tagNewToken error:", err);
+        await tagNewToken(item);
+
+        // ✅ DEBUG ON CREATE
+        if (!item.locked) {
+          debugPlayerInfo(item);
         }
+
+        continue;
+      }
+
+      // ✅ DEBUG ON MOVE / UPDATE
+      if (!item.metadata?.["phil.sudoku"]?.system && !item.locked) {
+        debugPlayerInfo(item);
       }
     }
   });
 }
+
+    for (const item of items) {
 
 // =========================
 // ✅ CLEAR SCENE
