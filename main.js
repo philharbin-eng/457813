@@ -67,6 +67,11 @@ function setupItemWatcher() {
       if (!knownIds.has(item.id)) {
         knownIds.add(item.id);
 
+if (!item.metadata?.["phil.sudoku"]?.system && !item.locked) {
+  debugPlayerInfo(item);
+}
+
+        
         if (item.metadata?.["phil.sudoku"]?.system) continue;
 
         try {
@@ -207,7 +212,7 @@ async function buildBoard(grid) {
         .position({ x, y })
         .scale({ x: 3, y: 3 })
         .layer("CHARACTER")
-        .locked(false)
+        .locked(true)
         .metadata({
           "phil.sudoku": {
             value,
@@ -250,6 +255,25 @@ function populateDifficulty() {
     select.appendChild(opt);
   });
 }
+
+
+
+function debugPlayerInfo(item) {
+  console.log("---- PLAYER DEBUG ----");
+  console.log("id:", item.id);
+  console.log("name:", item.name);
+
+  console.log("createdUserId:", item.createdUserId);
+  console.log("lastModifiedUserId:", item.lastModifiedUserId);
+  console.log("ownerId:", item.ownerId);
+  console.log("createdBy:", item.createdBy);
+  console.log("lastModifiedBy:", item.lastModifiedBy);
+
+  console.log("full item:", item);
+}
+
+
+
 
 function getPath(diffId, number) {
   const diff = config.difficulties.find(d => d.id === diffId);
