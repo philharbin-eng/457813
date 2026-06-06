@@ -172,16 +172,17 @@ async function addBackground(bgPath) {
 // =========================
 // ✅ BUILD BOARD
 // =========================
-async function buildBoard(grid, solution) {async function buildBoard(grid, const items = [];
+async function buildBoard(grid, solution) {async function buildBoard(grid, = [];
 
   const startX = -2650;
   const startY = 170;
   const spacing = 620;
 
   const cells = [];
-  players: {}
-                                           
-  // ✅ Build full 81-cell coordinate map
+
+  // =========================
+  // ✅ Build full 81-cell coordinate table
+  // =========================
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       const x = startX + 7 + (c * spacing);
@@ -190,13 +191,15 @@ async function buildBoard(grid, solution) {async function buildBoard(grid, const
       cells.push({
         row: r,
         col: c,
-        x,
-        y
+        x: x,
+        y: y
       });
     }
   }
 
-  // ✅ Build initial tokens (given values only)
+  // =========================
+  // ✅ Build tokens (only non-zero values)
+  // =========================
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       const value = grid[r][c];
@@ -230,7 +233,7 @@ async function buildBoard(grid, solution) {async function buildBoard(grid, const
         .locked(true)
         .metadata({
           "phil.sudoku": {
-            value,
+            value: value,
             row: r,
             col: c,
             system: true
@@ -242,27 +245,35 @@ async function buildBoard(grid, solution) {async function buildBoard(grid, const
     }
   }
 
-  // ✅ Add initial tokens to scene
+  // =========================
+  // ✅ Add tokens to scene
+  // =========================
   if (items.length) {
     await OBR.scene.items.addItems(items);
     console.log(`✅ Board built`);
   }
 
-  // ✅ Create working gameboard (deep copy of grid)
+  // =========================
+  // ✅ Create working board (deep copy)
+  // =========================
   const gameboard = grid.map(row => [...row]);
 
-  // ✅ Store full board state in scene metadata (ONE atomic write)
+  // =========================
+  // ✅ Store ALL board metadata (atomic write)
+  // =========================
   await OBR.scene.setMetadata({
     "phil.sudoku.board": {
-      grid,        // original puzzle
-      gameboard,   // mutable board
-      solution,    // full solution
-      cells        // full coordinate map
-    }
+      grid: grid,             // original puzzle
+      gameboard: gameboard,   // mutable state
+      solution: solution,     // correct answers
+      cells: cells            // full coordinate map (all 81)
+    },
+    "phil.sudoku.players": {}   // ✅ reset players (new game)
   });
 
   console.log(`✅ Board metadata stored`);
 }
+
 
 
 // =========================
