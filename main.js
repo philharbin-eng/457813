@@ -276,6 +276,9 @@ async function buildBoard(grid, solution) {async function buildBoard(grid, = [];
 
 
 
+
+
+
 // =========================
 // ✅ GAME CONFIG
 // =========================
