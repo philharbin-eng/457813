@@ -1,28 +1,53 @@
 import OBR, { buildImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk/+esm";
-
-const NS = "phil.tokenProcessor";
-const TOKEN_KEY = "timestamp";
-const PROCESSED_KEY = "processed";
+import OBR, { buildImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk/+const BOARD_META_KEY = "phil.sudoku.board";
+const PLAYERS_META_KEY = "phil.sudoku.players";
+							  
+								  
 
 const knownIds = new Set();
+const processingIds = new Set();
+
 let suppressChanges = false;
 
 let config = null;
 let backgroundsConfig = null;
+let heartMessagesConfig = null;
+let scoreMessagesConfig = null;
+
+let currentUserId = null;
+let currentUserRole = null;
 
 // =========================
-// ✅ ON READY (DO NOTHING TO SCENE)
+// ✅ CONSTANTS
+// =========================
+const BOARD_START_X = -2650;
+const BOARD_START_Y = 170;
+const BOARD_SPACING = 620;
+const BOARD_OFFSET = 7;
+
+const POOL_PRIMARY_X = BOARD_START_X - (BOARD_SPACING * 2);
+const POOL_SECONDARY_X = BOARD_START_X - BOARD_SPACING;
+const POOL_STACK_COUNT = 9;
+const POOL_REPLENISH_THRESHOLD = 3;
+
+const SNAP_RADIUS = 100;
+const STARTING_HEARTS = 3;
+
+// =========================
+// ✅ ON READY  (DO NOTHING TO SCENE)
 // =========================
 OBR.onReady(async () => {
   console.log("✅ Extension Ready");
-  document.getElementById("status").innerText = "Waiting for scene...";
+  setStatus("Waiting for scene...");
 
   await waitForSceneReady();
 
+  currentUserId = await OBR.player.getId();
+  currentUserRole = await OBR.player.getRole();
+
   console.log("🎬 Scene ready");
 
-
-  // ✅ SET CAMERA FOR EVERYONE ON LOAD
+  // ✅ SET CAMERA FOR EVERYONE ON LOAD										
   await setGameCamera();
 
   const existingItems = await OBR.scene.items.getItems();
@@ -36,8 +61,10 @@ OBR.onReady(async () => {
 
   await loadConfig();
   await loadBackgrounds();
+  await loadHeartMessages();
+  await loadScoreMessages();
 
-  document.getElementById("status").innerText = "Ready";
+  setStatus("Ready");
 });
 
 // =========================
@@ -54,25 +81,62 @@ async function waitForSceneReady() {
   }
 }
 
+// =========================
+// ✅ STATUS HELPER
+// =========================
+function setStatus(text) {
+  const el = document.getElementById("status");
+  if (el) el.innerText = text;
+}
 
-
+	
+// =========================
+// ✅ ITEM WATCHER
+// =========================
 function setupItemWatcher() {
   OBR.scene.items.onChange(async (items) => {
     if (suppressChanges) return;
 
+    const needsPoolCheck = currentUserRole === "GM";
+
     for (const item of items) {
       if (item.type !== "IMAGE") continue;
 
-      const isKnown = knownIds.has(item.id);
+											
 
-      // Track all seen items
-      if (!isKnown) {
+      if (!knownIds.has(item.id)) {
+					 
         knownIds.add(item.id);
       }
 
       // ✅ DEBUG ONLY (no mutation!)
-      if (!item.metadata?.["phil.sudoku"]?.system && !item.locked) {
-        debugPlayerInfo(item);
+      //if (!item.metadata?.["phil.sudoku"]?.system && !item.locked) {
+      //  debugPlayerInfo(item);
+
+      // ✅ Player self-processing trigger
+      if (
+        item.lastModifiedUserId === currentUserId &&
+        !item.locked &&
+        !processingIds.has(item.id)
+      ) {
+        processingIds.add(item.id);
+
+        try {
+          await processToken(item);
+        } catch (err) {
+          console.error("❌ processToken error:", err);
+        } finally {
+          processingIds.delete(item.id);
+        }
+      }
+    }
+
+    // ✅ GM keeps token pools stocked
+    if (needsPoolCheck) {
+      try {
+        await ensurePoolStock();
+      } catch (err) {
+        console.error("❌ ensurePoolStock error:", err);
       }
     }
   });
@@ -88,10 +152,19 @@ async function clearScene() {
     .filter(i => i.type === "IMAGE")
     .map(i => i.id);
 
-  if (toDelete.length) {
-    await OBR.scene.items.deleteItems(toDelete);
-    console.log(`🧹 Cleared ${toDelete.length} items`);
+  suppressChanges = true;
+  try {
+    if (toDelete.length) {
+      await OBR.scene.items.deleteItems(toDelete);
+      console.log(`🧹 Cleared ${toDelete.length} items`);
+    }
+  } finally {
+    setTimeout(() => {
+      suppressChanges = false;
+    }, 50);
   }
+
+  knownIds.clear();
 }
 
 // =========================
@@ -111,10 +184,13 @@ async function loadBackgrounds() {
   if (!res.ok) {
     throw new Error(`Failed to load backgrounds.json`);
   }
+  
 
-  backgroundsConfig = await res.json();
+    backgroundsConfig = await res.json();
 
   const select = document.getElementById("backgroundSelect");
+  if (!select) return;
+
   select.innerHTML = "";
 
   backgroundsConfig.backgrounds.forEach(bg => {
@@ -124,13 +200,16 @@ async function loadBackgrounds() {
     select.appendChild(opt);
   });
 
-  console.log(`✅ Loaded backgrounds`);
+  console.log("✅ Loaded backgrounds");
 }
 
 function getSelectedBackground() {
   if (!backgroundsConfig) return null;
 
-  const id = document.getElementById("backgroundSelect").value;
+  const select = document.getElementById("backgroundSelect");
+  if (!select) return null;
+
+  const id = select.value;
   return backgroundsConfig.backgrounds.find(b => b.id === id);
 }
 
@@ -157,27 +236,80 @@ async function addBackground(bgPath) {
     .layer("MAP")
     .locked(true)
     .metadata({
-      "phil.sudoku": {
+      [SUDOKU_NS]: {
         system: true,
         kind: "background"
       }
     })
     .build();
 
-  await OBR.scene.items.addItems([bg]);
+  suppressChanges = true;
+  try {
+    await OBR.scene.items.addItems([bg]);
+    knownIds.add(bg.id);
+  } finally {
+    setTimeout(() => {
+      suppressChanges = false;
+    }, 50);
+  }
 
   console.log(`✅ Background added: ${bgPath}`);
 }
 
 // =========================
-// ✅ BUILD BOARD
+// ✅ GAME CONFIG
 // =========================
-async function buildBoard(grid, solution) {async function buildBoard(grid, = [];
+async function loadConfig() {
+  const res = await fetch("https://philharbin-eng.github.io/457813/config/games.json");
+  if (!res.ok) throw new Error("Failed to load game config");
 
-  const startX = -2650;
-  const startY = 170;
-  const spacing = 620;
+  config = await res.json();
+  populateDifficulty();
+}
 
+function populateDifficulty() {
+  const select = document.getElementById("difficulty");
+  if (!select) return;
+
+  select.innerHTML = "";
+
+  config.difficulties.forEach(d => {
+    const opt = document.createElement("option");
+    opt.value = d.id;
+    opt.textContent = d.label || d.id;
+    select.appendChild(opt);
+  });
+}
+
+function getPath(diffId, number) {
+  const diff = config.difficulties.find(d => d.id === diffId);
+  return diff.path.replace("{n}", number);
+}
+
+// =========================
+// ✅ MESSAGE CONFIGS
+// =========================
+async function loadHeartMessages() {
+  const res = await fetch("https://philharbin-eng.github.io/457813/config/heartmessages.json");
+  if (!res.ok) throw new Error("Failed to load heartmessages.json");
+
+  heartMessagesConfig = await res.json();
+  console.log("✅ Loaded heartmessages.json");
+}
+
+async function loadScoreMessages() {
+  const res = await fetch("https://philharbin-eng.github.io/457813/config/scoremessages.json");
+  if (!res.ok) throw new Error("Failed to load scoremessages.json");
+
+  scoreMessagesConfig = await res.json();
+  console.log("✅ Loaded scoremessages.json");
+}
+
+// =========================
+// ✅ BUILD BOARD + POOL
+// =========================
+async function buildBoard(grid, solution) {
+  const items = [];
   const cells = [];
 
   // =========================
@@ -185,28 +317,28 @@ async function buildBoard(grid, solution) {async function buildBoard(grid, = [];
   // =========================
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
-      const x = startX + 7 + (c * spacing);
-      const y = startY + 7 + (r * spacing);
+      const x = BOARD_START_X + BOARD_OFFSET + (c * BOARD_SPACING);
+      const y = BOARD_START_Y + BOARD_OFFSET + (r * BOARD_SPACING);
 
       cells.push({
         row: r,
         col: c,
-        x: x,
-        y: y
+        x,
+        y
       });
     }
   }
 
   // =========================
-  // ✅ Build tokens (only non-zero values)
+  // ✅ Build given board tokens (locked)
   // =========================
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       const value = grid[r][c];
       if (value === 0) continue;
 
-      const x = startX + 7 + (c * spacing);
-      const y = startY + 7 + (r * spacing);
+      const x = BOARD_START_X + BOARD_OFFSET + (c * BOARD_SPACING);
+      const y = BOARD_START_Y + BOARD_OFFSET + (r * BOARD_SPACING);
 
       const url = new URL(
         `https://philharbin-eng.github.io/457813/tokens/${value}.png`,
@@ -226,17 +358,18 @@ async function buildBoard(grid, solution) {async function buildBoard(grid, = [];
         }
       )
         .id(crypto.randomUUID())
-        .name(`Sudoku-${value}`)
+        .name(String(value))
         .position({ x, y })
         .scale({ x: 3, y: 3 })
         .layer("CHARACTER")
         .locked(true)
         .metadata({
-          "phil.sudoku": {
-            value: value,
+          [SUDOKU_NS]: {
+            value,
             row: r,
             col: c,
-            system: true
+            system: true,
+            kind: "given"
           }
         })
         .build();
@@ -246,105 +379,404 @@ async function buildBoard(grid, solution) {async function buildBoard(grid, = [];
   }
 
   // =========================
-  // ✅ Add tokens to scene
+  // ✅ Build token pool (9 of each, stacked)
   // =========================
-  if (items.length) {
-    await OBR.scene.items.addItems(items);
-    console.log(`✅ Board built`);
+  for (let value = 1; value <= 9; value++) {
+    const { x, y } = getPoolPositionForValue(value);
+
+    for (let i = 0; i < POOL_STACK_COUNT; i++) {
+      const url = new URL(
+        `https://philharbin-eng.github.io/457813/tokens/${value}.png`,
+        window.location.origin
+      ).href;
+
+      const poolItem = buildImage(
+        {
+          width: 70,
+          height: 70,
+          mime: "image/png",
+          url
+        },
+        {
+          dpi: 70,
+          offset: { x: 0, y: 0 }
+        }
+      )
+        .id(crypto.randomUUID())
+        .name(String(value))
+        .position({ x, y })
+        .scale({ x: 3, y: 3 })
+        .layer("CHARACTER")
+        .locked(false)
+        .metadata({
+          [SUDOKU_NS]: {
+            value,
+            system: true,
+            kind: "pool"
+          }
+        })
+        .build();
+
+      items.push(poolItem);
+    }
   }
 
   // =========================
-  // ✅ Create working board (deep copy)
+  // ✅ Add all tokens to scene
+  // =========================
+  suppressChanges = true;
+  try {
+    if (items.length) {
+      await OBR.scene.items.addItems(items);
+      for (const item of items) {
+        knownIds.add(item.id);
+      }
+      console.log("✅ Board + pool built");
+    }
+  } finally {
+    setTimeout(() => {
+      suppressChanges = false;
+    }, 50);
+  }
+
+  // =========================
+  // ✅ Create working board
   // =========================
   const gameboard = grid.map(row => [...row]);
 
   // =========================
-  // ✅ Store ALL board metadata (atomic write)
+  // ✅ Store board metadata + reset players
   // =========================
   await OBR.scene.setMetadata({
-    "phil.sudoku.board": {
-      grid: grid,             // original puzzle
-      gameboard: gameboard,   // mutable state
-      solution: solution,     // correct answers
-      cells: cells            // full coordinate map (all 81)
+    [BOARD_META_KEY]: {
+      grid,
+      gameboard,
+      solution,
+      cells
     },
-    "phil.sudoku.players": {}   // ✅ reset players (new game)
+    [PLAYERS_META_KEY]: {}
   });
 
-  console.log(`✅ Board metadata stored`);
+  console.log("✅ Board metadata stored");
 }
 
+function getPoolPositionForValue(value) {
+  // values 1-5 in far-left column, 6-9 in near-left column
+  if (value <= 5) {
+    return {
+      x: POOL_PRIMARY_X + BOARD_OFFSET,
+      y: BOARD_START_Y + BOARD_OFFSET + ((value - 1) * BOARD_SPACING)
+    };
+  }
 
-
-
-
-
-// =========================
-// ✅ GAME CONFIG
-// =========================
-async function loadConfig() {
-  const res = await fetch("https://philharbin-eng.github.io/457813/config/games.json");
-  if (!res.ok) throw new Error("Failed to load game config");
-
-  config = await res.json();
-  populateDifficulty();
+  return {
+    x: POOL_SECONDARY_X + BOARD_OFFSET,
+    y: BOARD_START_Y + BOARD_OFFSET + ((value - 6) * BOARD_SPACING)
+  };
 }
 
-function populateDifficulty() {
-  const select = document.getElementById("difficulty");
-  select.innerHTML = "";
+// =========================
+// ✅ GM REPLENISH POOL
+// =========================
+async function ensurePoolStock() {
+  if (currentUserRole !== "GM") return;
 
-  config.difficulties.forEach(d => {
-    const opt = document.createElement("option");
-    opt.value = d.id;
-    opt.textContent = d.label || d.id;
-    select.appendChild(opt);
+  const items = await OBR.scene.items.getItems();
+
+  const counts = {
+    1: 0, 2: 0, 3: 0, 4: 0, 5: 0,
+    6: 0, 7: 0, 8: 0, 9: 0
+  };
+
+  for (const item of items) {
+    if (item.type !== "IMAGE") continue;
+
+    const meta = item.metadata?.[SUDOKU_NS];
+    if (!meta) continue;
+
+    if (meta.kind === "pool") {
+      const value = Number(meta.value);
+      if (counts[value] !== undefined) {
+        counts[value]++;
+      }
+    }
+  }
+
+  const newItems = [];
+
+  for (let value = 1; value <= 9; value++) {
+    if (counts[value] < POOL_REPLENISH_THRESHOLD) {
+      const needed = POOL_STACK_COUNT - counts[value];
+      const { x, y } = getPoolPositionForValue(value);
+
+      for (let i = 0; i < needed; i++) {
+        const url = new URL(
+          `https://philharbin-eng.github.io/457813/tokens/${value}.png`,
+          window.location.origin
+        ).href;
+
+        const poolItem = buildImage(
+          {
+            width: 70,
+            height: 70,
+            mime: "image/png",
+            url
+          },
+          {
+            dpi: 70,
+            offset: { x: 0, y: 0 }
+          }
+        )
+          .id(crypto.randomUUID())
+          .name(String(value))
+          .position({ x, y })
+          .scale({ x: 3, y: 3 })
+          .layer("CHARACTER")
+          .locked(false)
+          .metadata({
+            [SUDOKU_NS]: {
+              value,
+              system: true,
+              kind: "pool"
+            }
+          })
+          .build();
+
+        newItems.push(poolItem);
+      }
+    }
+  }
+
+  if (newItems.length) {
+    suppressChanges = true;
+    try {
+      await OBR.scene.items.addItems(newItems);
+      for (const item of newItems) {
+        knownIds.add(item.id);
+      }
+      console.log(`✅ Replenished ${newItems.length} pool tokens`);
+    } finally {
+      setTimeout(() => {
+        suppressChanges = false;
+      }, 50);
+    }
+  }
+}
+
+// =========================
+// ✅ PLAYER TOKEN PROCESSING
+// =========================
+async function processToken(item) {
+  if (!item || item.type !== "IMAGE") return;
+															 
+
+  const metadata = await OBR.scene.getMetadata();
+  const boardState = metadata[BOARD_META_KEY];
+  const players = metadata[PLAYERS_META_KEY] || {};
+
+  if (!boardState) {
+    console.warn("⚠️ No board metadata found");
+    return;
+  }
+
+  const { gameboard, solution, cells } = boardState;
+
+  let player = players[currentUserId];
+  if (!player) {
+    player = {
+      hearts: STARTING_HEARTS,
+      score: 0
+    };
+    players[currentUserId] = player;
+  }
+
+  // Player has no hearts left -> delete token, no penalty
+  if (player.hearts === 0) {
+    await deleteToken(item.id);
+    setStatus("No hearts left");
+    return;
+  }
+
+  const value = Number(item.name);
+  if (!Number.isInteger(value) || value < 1 || value > 9) {
+    await deleteToken(item.id);
+    console.warn(`⚠️ Invalid token name/value: ${item.name}`);
+    return;
+  }
+
+  const nearest = findNearestOpenCell(item.position, cells, gameboard);
+  if (!nearest) {
+    await deleteToken(item.id);
+    setStatus("Outside snap radius");
+    return;
+  }
+
+  const { row, col, x, y, distance } = nearest;
+
+  if (distance > SNAP_RADIUS) {
+    await deleteToken(item.id);
+    setStatus("Mouse slip removed");
+    return;
+  }
+
+  const correctValue = Number(solution[row][col]);
+
+  // Wrong value -> delete and lose heart
+  if (value !== correctValue) {
+    await deleteToken(item.id);
+
+    player.hearts = Math.max(0, player.hearts - 1);
+
+    await OBR.scene.setMetadata({
+      [PLAYERS_META_KEY]: players
+    });
+
+    const message = getRandomHeartMessage(player.hearts);
+    await OBR.notification.show(message);
+
+    setStatus(`Wrong value. Hearts: ${player.hearts}`);
+    return;
+  }
+
+  // Correct value -> update player + board metadata
+  player.score += value;
+  gameboard[row][col] = value;
+
+  await OBR.scene.setMetadata({
+    [BOARD_META_KEY]: {
+      ...boardState,
+      gameboard
+    },
+    [PLAYERS_META_KEY]: players
   });
+
+  // Finalize token atomically
+  suppressChanges = true;
+  try {
+    await OBR.scene.items.updateItems([item.id], (items) => {
+      const token = items[0];
+      const existingMeta = token.metadata || {};
+      const existingSudoku = existingMeta[SUDOKU_NS] || {};
+
+      token.position = { x, y };
+      token.locked = true;
+
+      token.metadata = {
+        ...existingMeta,
+        [SUDOKU_NS]: {
+          ...existingSudoku,
+          value,
+          row,
+          col,
+          system: false,
+          kind: "played",
+          validatedTimestamp: Date.now(),
+          points: value
+        }
+      };
+    });
+  } finally {
+    setTimeout(() => {
+      suppressChanges = false;
+    }, 50);
+  }
+
+  const scoreMessage = getRandomScoreMessage(value);
+  await OBR.notification.show(scoreMessage);
+
+  setStatus(`Placed ${value} at [${row + 1}, ${col + 1}]`);
 }
 
+function findNearestOpenCell(position, cells, gameboard) {
+  let best = null;
 
+  for (const cell of cells) {
+    const { row, col, x, y } = cell;
 
-function debugPlayerInfo(item) {
-  console.log("---- PLAYER DEBUG ----");
-  console.log("id:", item.id);
-  console.log("name:", item.name);
+    if (gameboard[row][col] !== 0) continue;
+										
+							  
+								  
 
-  console.log("createdUserId:", item.createdUserId);
-  console.log("lastModifiedUserId:", item.lastModifiedUserId);
-  console.log("ownerId:", item.ownerId);
-  console.log("createdBy:", item.createdBy);
-  console.log("lastModifiedBy:", item.lastModifiedBy);
+    const dx = position.x - x;
+    const dy = position.y - y;
+    const distance = Math.sqrt((dx * dx) + (dy * dy));
+											
+													  
 
-  console.log("full item:", item);
+    if (!best || distance < best.distance) {
+      best = {
+        row,
+        col,
+        x,
+        y,
+        distance
+      };
+    }
+  }
+
+  return best;
 }
 
-
-
-
-function getPath(diffId, number) {
-  const diff = config.difficulties.find(d => d.id === diffId);
-  return diff.path.replace("{n}", number);
+async function deleteToken(itemId) {
+  suppressChanges = true;
+  try {
+    await OBR.scene.items.deleteItems([itemId]);
+  } finally {
+    setTimeout(() => {
+      suppressChanges = false;
+    }, 50);
+  }
 }
 
 // =========================
-// ✅ START BUTTON (CORE FLOW)
+// ✅ MESSAGE HELPERS
+// =========================
+function getRandomFromArray(arr, fallback) {
+  if (!Array.isArray(arr) || arr.length === 0) return fallback;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getRandomHeartMessage(remainingHearts) {
+  if (!heartMessagesConfig) {
+    returnetRandomScoreMessage(points) {
+  if (!scoreMessagesConfig) {
+    return `+${points} points!`;
+  }
+
+  let key = "under5";
+  if (points >= 6 && points <= 15) key = "6to15";
+  else if (points >= 16 && points <= 30) key = "16to30";
+  else if (points > 30) key = "over30";
+
+  const bucket = scoreMessagesConfig[key] || [];
+  const template = getRandomFromArray(bucket, `+${points} points!`);
+
+  return template.replaceAll("{points}", String(points));
+}
+
+// =========================
+// ✅ START BUTTON
 // =========================
 document.getElementById("startBtn").addEventListener("click", async () => {
   try {
     const role = await OBR.player.getRole();
     if (role !== "GM") {
-      document.getElementById("status").innerText = "DM only";
+      setStatus("DM only");
       return;
     }
 
     await waitForSceneReady();
 
-    const diff = document.getElementById("difficulty").value;
-    const num = document.getElementById("gameNumber").value;
+    const difficultyEl = document.getElementById("difficulty");
+    const gameNumberEl = document.getElementById("gameNumber");
+
+    const diff = difficultyEl ? difficultyEl.value : null;
+    const num = gameNumberEl ? gameNumberEl.value : null;
 
     const bg = getSelectedBackground();
     if (!bg) {
-      document.getElementById("status").innerText = "Select background";
+      setStatus("Select background");
       return;
     }
 
@@ -354,46 +786,50 @@ document.getElementById("startBtn").addEventListener("click", async () => {
     if (!response.ok) throw new Error("Game load failed");
 
     const data = await response.json();
+    if (!data.grid || !data.solution) {
+      throw new Error("Game JSON must contain grid and solution");
+    }
 
-    // ✅ FULL CONTROL FLOW HERE
+								 
     await clearScene();
     await setGameCamera();
     await addBackground(bg.path);
-    await buildBoard(data.grid);
+    await buildBoard(data.grid, data.solution);
 
-    document.getElementById("status").innerText = "Game Started";
+																 
 
+    setStatus("Game Started");
   } catch (err) {
     console.error(err);
-    document.getElementById("status").innerText = "Error";
+    setStatus("Error");
   }
 });
 
-// =========================
-// ✅ TOKEN TAGGER (UNCHANGED)
-// =========================
-async function tagNewToken(item) {
-  const now = Date.now();
+							
+							   
+							
+								  
+						 
 
-  suppressChanges = true;
-  try {
-    await OBR.scene.items.updateItems([item.id], (items) => {
-      const token = items[0];
-      const existingMeta = token.metadata || {};
-      const existingNs = existingMeta[NS] || {};
+const SUDOKU_NS = "phil.sudoku";
+	   
+															 
+							 
+												
+												
 
-      token.metadata = {
-        ...existingMeta,
-        [NS]: {
-          ...existingNs,
-          [TOKEN_KEY]: now,
-          [PROCESSED_KEY]: false
-        }
-      };
-    });
-  } finally {
-    setTimeout(() => {
-      suppressChanges = false;
-    }, 50);
-  }
-}
+						
+						
+			   
+						
+						   
+								
+		 
+		
+	   
+			 
+					  
+							  
+		   
+   
+ 
