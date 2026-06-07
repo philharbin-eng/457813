@@ -1,5 +1,6 @@
 import OBR, { buildImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk/+esm";
-import OBR, { buildImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk/+const BOARD_META_KEY = "phil.sudoku.board";
+//import OBR, { buildImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk/+const 
+const BOARD_META_KEY = "phil.sudoku.board";
 const PLAYERS_META_KEY = "phil.sudoku.players";
 							  
 								  
